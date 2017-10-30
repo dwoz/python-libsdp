@@ -2,8 +2,10 @@
 https://tools.ietf.org/html/rfc4566
 """
 from collections import namedtuple
+import re
 
 
+TIMESRE = re.compile('(-?\d+)([dhms]{0,1})')
 FieldDesc = _D = namedtuple('FieldDesc', 'name, desc, required')
 SectionDesc = _S = namedtuple('SectionDesc', 'fields, desc, required, multiple')
 _time_desc_fields = [
@@ -29,15 +31,17 @@ _sdp_fields = [
    _D('p', 'phone number', False),
    _D('c', 'connection information -- not required if included in all media', False),
    _D('b', 'zero or more bandwidth information lines', False),
-   _S(time_desc_fields, 'Time description', True, True),
+   _S(_time_desc_fields, 'Time description', True, True),
    _D('z', 'time zone adjustments', False),
    _D('k', 'encryption key', False),
    _D('a', 'zero or more session attribute lines', False),
-   _S(media_desc_fields, 'Media description', False, True),
+   _S(_media_desc_fields, 'Media description', False, True),
 ]
-sdp_desc = S(_sdp_fields, 'Session description', True, False)
+sdp_desc = _S(_sdp_fields, 'Session description', True, False)
+
 
 class SdpValue(object):
+    pass
 
 
 class ProtocolVersion(SdpValue):
@@ -183,9 +187,66 @@ class Bandwidth(SdpValue):
 
     @classmethod
     def loads(cls, val):
+        fields = [x.strip() for x in val.split(':') if x.strip()]
+        return cls(
+            cls._load_enum(fields[0], ('CT', 'AS',)),
+            cls._load_str(fields[1]),
+        )
+
+
+class Timing(SdpValue):
+
+    def __init__(self, start_time, stop_time):
+        self.start_time = start_time
+        self.stop_time = stop_time
+
+    def dumps(self):
+        return '{} {}'.format(self.start_time, self.stop_time)
+
+    @classmethod
+    def loads(cls, val):
         fields = [x.strip() for x in val.split(' ') if x.strip()]
         return cls(
-            cls._load_enum(fields[0], ('IN',)),
-            cls._load_enum(fields[1], ('IP4', 'IP6',)),
-            cls._load_str(fields[2]), ## TODO: _load_addr
+            cls._load_int(fields[0]),
+            cls._load_int(fields[1]),
         )
+
+
+
+class RepeatTimes(SdpValue):
+
+    def __init__(self, interval, duration, times):
+        self.interval = interval
+        self.duration = duration
+        self.times = times
+
+    def _load_time(self, val):
+        pass
+
+
+class TimeZones(SdpValue):
+
+    def __init__(self, zones):
+        self.zones = zones
+
+
+class EncryptionKeys(SdpValue):
+
+    def __init__(self, method, key=None):
+        self.method = method
+        self.key = key
+
+
+class Attributes(SdpValue):
+
+    def __init__(self, attr, val=None):
+        self.attr = attr
+        self.val = val
+
+
+class MediaDescrption(SdpValue):
+
+    def __init__(self, port, proto, fmts):
+        self.port = port
+        self.proto = proto
+        self.fmts = fmts
