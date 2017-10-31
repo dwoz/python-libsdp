@@ -1,13 +1,14 @@
 import random
 import struct
 import packetview
+import socket
 
 
 def getRandomTID():
-	# It's not necessary to have a particularly strong TID here
-	tid = [ chr(random.randint(0,255)) for x in range(32) ]
-	tid = ''.join(tid)
-	return tid.encode()
+    # It's not necessary to have a particularly strong TID here
+    tid = [ chr(random.randint(0,255)) for x in range(32) ]
+    tid = ''.join(tid)
+    return tid.encode()
 
 
 MAGIC = 0x2112A442
@@ -43,9 +44,9 @@ attrs = []
 
 def _addr2str(value, family=socket.AF_INET):
     return (family == socket.AF_INET) and \
-		'.'.join([str(ord(x)) for x in value[:4]]) \
+        '.'.join([str(ord(x)) for x in value[:4]]) \
         or (family == socket.AF_INET6) and \
-		':'.join(['%02x'%ord(x) for x in value[:16]]) \
+        ':'.join(['%02x'%ord(x) for x in value[:16]]) \
         or None
 
 def _str2addr(value, family=socket.AF_INET):
@@ -58,39 +59,39 @@ def _str2addr(value, family=socket.AF_INET):
 
 class StunAttr(object):
 
-	typ = UNKNOWN_ATTR
+    typ = UNKNOWN_ATTR
 
-	def __init__(self, val):
+    def __init__(self, val):
         self.val = val
 
-	def pack(self):
-		return struct.pack('!HH', self.typ, len(self.val)) + self.val
+    def pack(self):
+        return struct.pack('!HH', self.typ, len(self.val)) + self.val
 
-	@classmethod
-	def unpack(cls, byts):
-		typ, lenght = struct.unpack('!HH', byts[:4])
+    @classmethod
+    def unpack(cls, byts):
+        typ, lenght = struct.unpack('!HH', byts[:4])
         val = byts[4:4+length]
         return cls(val)
 
-	@staticmethod
-	def _padd(byts):
-		pass
-	@staticmethod
-	def _unpad(byts):
-		pass
+    @staticmethod
+    def _padd(byts):
+        pass
+    @staticmethod
+    def _unpad(byts):
+        pass
 
-	@staticmethod
-	def _splt(byts):
-		'split the message type, length, and value parts of a stun attr'
-		typ, lenght = struct.unpack('!HH', byts[:4])
+    @staticmethod
+    def _splt(byts):
+        'split the message type, length, and value parts of a stun attr'
+        typ, lenght = struct.unpack('!HH', byts[:4])
         return typ, length, byts[4:]
 
 
 class UnknownAttr(StunAttr):
-	pass
+    pass
 
 class MappedAddr(StunAttr):
-	typ = MAPPED_ADDR
+    typ = MAPPED_ADDR
 
     def __init__(self, family, port, addr):
         self.family = family
@@ -98,77 +99,78 @@ class MappedAddr(StunAttr):
         self.addr = addr
 
     def pack(self):
-		address = _str2addr(self.addr, self.family)
-		family = (family == socket.AF_INET) and 0x01 or (family == socket.AF_INET6) \
-			and 0x02 or 0x00
-		val = struct.pack('!BBH', 0, family, port) + address
+        address = _str2addr(self.addr, self.family)
+        family = (family == socket.AF_INET) and 0x01 or (family == socket.AF_INET6) \
+            and 0x02 or 0x00
+        val = struct.pack('!BBH', 0, family, port) + address
         return struct.pack('!HH', self.typ, len(val)) + val
 
-	@classmethod
-	def unpack(cls, byts):
-		typ, lenght = struct.unpack('!HH', byts[:4])
+    @classmethod
+    def unpack(cls, byts):
+        typ, lenght = struct.unpack('!HH', byts[:4])
         _, family, port = struct.unpack('!BBH', byts[:4])
         family = (family == 0x01) and socket.AF_INET or (family == 0x02) \
-			and socket.AF_INET6 or socket.AF_UNSPEC
+            and socket.AF_INET6 or socket.AF_UNSPEC
         return cls(family, port, _addr2str(self.value[4:], family))
 
 
 class Username(StunAttr):
 
-	def __init__(self, username):
-		self.username = username
+    def __init__(self, username):
+        self.username = username
 
-	def pack(self):
-		return struct.pack('!HH', self.typ, len(self.username)) + self.username
+    def pack(self):
+        return struct.pack('!HH', self.typ, len(self.username)) + self.username
 
-	@classmethod
-	def unpack(cls, byts):
-		typ, lenght = struct.unpack('!HH', byts[:4])
+    @classmethod
+    def unpack(cls, byts):
+        typ, lenght = struct.unpack('!HH', byts[:4])
         val = byts[4:4+length]
         return cls(val)
 
 
 class _AttrFactory(object):
 
-	def __init__(self, attr_map):
-		self.attr_map = attr_map
+    def __init__(self, attr_map=None):
+        self.attr_map = attr_map or {}
 
-	def register(self, cls):
-		self.attr_map[cls.typ] = cls
+    def register(self, cls):
+        self.attr_map[cls.typ] = cls
 
-	def pack(self, attr):
-		pass
+    def pack(self, attr):
+        pass
 
-	def unpack(self, byts):
-		pass
+    def unpack(self, byts):
+        pass
 
 
-AttrFactory = AttrFactory()
+AttrFactory = _AttrFactory()
 AttrFactory.register(UnknownAttr)
-AttrFactory.register(MappedAdder)
+AttrFactory.register(MappedAddr)
 AttrFactory.register(Username)
 
 
 class StunMsg(object):
 
-	def __self__(self, typ, tid, attrs):
-		self.typ = typ
+    def __self__(self, typ, tid, attrs):
+        self.typ = typ
         self.tid = tid
         self.attrs = attrs
 
     def __repr__(self):
-		return '<StunMsg({}, {}, {})>'.format(self.typ, self.tid, self.attrs)
+        return '<StunMsg({}, {}, {})>'.format(self.typ, self.tid, self.attrs)
 
-	def pack(self):
-		if self.tid:
-			tid = self.tid
+    def pack(self):
+        if self.tid:
+            tid = self.tid
         else:
-			tid = getRandomTID()
-		body = b''
+            tid = getRandomTID()
+        body = b''
         for attr in self.attrs:
-			body += attr.pack()
-        return = struct.pack('!hhl32s', BIND_REQ, len(body), MAGIC, tid) + body
+            body += attr.pack()
+        return struct.pack('!hhl32s', BIND_REQ, len(body), MAGIC, tid) + body
 
-	def unpack(cls, val):
-		pass
+    def unpack(cls, val):
+        pass
 
+#print(repr(StunMsg(BIND_REQ, getRandomTID(), [MappedAddr('IP4', 12930, '127.0.0.1')]).dump()))
