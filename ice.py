@@ -1,6 +1,8 @@
 import netifaces
 
+
 class IceLite(object):
+
     def __init__(self):
         pass
 

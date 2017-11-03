@@ -6,8 +6,11 @@ import re
 import io
 
 
+TIMESRE = re.compile('(-?\d+)([dhms]{0,1})')
+
 class FieldSpec(object):
-    def __init__(self, long_name, short_name='', description='', required=True, multiple=False)
+
+    def __init__(self, long_name, description='', required=True, multiple=False, short_name=''):
         if not short_name:
             short_name = long_name[0]
         self.long_name = long_name
@@ -16,47 +19,74 @@ class FieldSpec(object):
         self.required = required
         self.multiple = multiple
 
-class SectionSpec(object)
-    def __init__(self, name, dsecription='', required=True, multiple=False)
+
+class SectionSpec(object):
+
+    def __init__(self, name, dsecription='', required=True, multiple=False):
         self.name = name
         self.description = description
         self.required = required
         self.multiple = muliple
+        self.fields = fields
 
 
-TIMESRE = re.compile('(-?\d+)([dhms]{0,1})')
-_D = namedtuple('FieldDesc', 'name, desc, required, multiple')
-_S = namedtuple('SectionDesc', 'fields, desc, required, multiple')
-_time_desc_fields = [
-   _D('t', 'time the session is acive', True, False),
-   _D('r', 'zero or more repeat times', False, False),
-]
-_media_desc_fields = [
-   _D('m', 'media name and transport address', True, False),
-   _D('i', 'media title', False, False),
-   _D('c', 'connection information -- optional if included at session level', False, False),
-   _D('b', 'zero or more bandwidth information lines', False, False),
-   _D('k', 'encryption key', False, False),
-   _D('a', 'zero or more media attribute lines', False, False),
+time_spec = SectionSpec(
+    'Time description',
+    'one or more time descriptions',
+    required=True,
+    multiple=True,
+)
 
+
+time_spec.fields = [
+   FieldSpec('time', 't', 'time the session is acive', True, False),
+   FieldSpec('repeat', 'r', 'zero or more repeat times', False, False),
 ]
-_sdp_fields = [
-   _D('v', 'protocol version', True, False),
-   _D('o', 'originator and session identifier', True, False),
-   _D('s', 'session name', True, False),
-   _D('i', 'session information', False, False),
-   _D('u', 'URI of description', False, False),
-   _D('e', 'email address', False, False),
-   _D('p', 'phone number', False, False),
-   _D('c', 'connection information -- not required if included in all media', False, False),
-   _D('b', 'zero or more bandwidth information lines', False, False),
-   _S(_time_desc_fields, 'Time description', True, True),
-   _D('z', 'time zone adjustments', False, False),
-   _D('k', 'encryption key', False, False),
-   _D('a', 'zero or more session attribute lines', False, False),
-   _S(_media_desc_fields, 'Media description', False, True),
+
+
+media_spec = SectionSpec(
+    'Media description',
+    'zero or more media descriptions',
+    required=False,
+    multiple=True
+)
+
+
+media_spec.fields = [
+    FieldSpec('media', 'm', 'media name and transport address', True, False),
+    FieldSpec('title', 'i', 'media title', False, False),
+    FieldSpec('connection_info', 'c', 'connection information -- optional if included at session level', False, False),
+    FieldSpec('bandwidth', 'b', 'zero or more bandwidth information lines', False, False),
+    FieldSpec('key', 'k', 'encryption key', False, False),
+    FieldSpec('attribute', 'a', 'zero or more media attribute lines', False, False),
 ]
-sdp_desc = _S(_sdp_fields, 'Session description', True, False)
+
+
+sdp_spec = SectionSpec(
+    'Session description',
+    'SDP Message',
+    required=True,
+    multiple=False
+)
+
+
+sdp_spec.fields = [
+    FieldSpec('version', 'v', 'protocol version', True, False),
+    FieldSpec('origin', 'o', 'originator and session identifier', True, False),
+    FieldSpec('session_name', 's', 'session name', True, False),
+    FieldSpec('session_info', 'i', 'session information', False, False),
+    FieldSpec('url', 'u', 'URI of description', False, False),
+    FieldSpec('email', 'e', 'email address', False, False),
+    FieldSpec('phone', 'p', 'phone number', False, False),
+    FieldSpec('connection_info', 'c', 'connection information -- not required if included in all media', False, False),
+    FieldSpec('bandwidth', 'b', 'zero or more bandwidth information lines', False, False),
+    time_spec,
+    FieldSpec('tz_adjustments', 'z', 'time zone adjustments', False, False),
+    FieldSpec('key', 'k', 'encryption key', False, False),
+    FieldSpec('attribute', 'a', 'zero or more session attribute lines', False, True),
+    media_spec,
+]
+
 
 _name_to_cls = {}
 
@@ -68,6 +98,43 @@ def parse_sdp(val, desc=sdp_desc):
         if field.required:
             x = (field.name, line)
         print(repr(line))
+
+
+class SectionValidator(object):
+
+    def __init__(self, desc):
+        self.desc = desc
+        self._diter = self.iter_desc(desc)
+
+    def next_desc(self):
+        return next(self._diter)
+
+    def __call__(self, rawsdp):
+        lines = io.StringIO(s)
+        desc = self.next_desc()
+        for line in lines:
+            name, val = line.strip('\n').split('=', 1)
+
+    @staticmethod
+    def iter_desc(*fields):
+        for a in fields:
+            if type(a) == _S:
+                for b in iter_desc(*a.fields):
+                    yield b
+            else:
+                yield a
+
+
+class FieldValidator(object):
+
+    def __init__(self, desc):
+        self.desc = desc
+
+    def __call__(self, rawsdp):
+        lines = io.StringIO(s)
+        for line in lines:
+            name, val = line.strip('\n').split('=', 1)
+
 
 class Loader(object):
 
@@ -124,6 +191,7 @@ class ProtocolVersion(SdpValue):
 
 
 _name_to_cls['v'] = ProtocolVersion
+
 
 class Origin(SdpValue):
 

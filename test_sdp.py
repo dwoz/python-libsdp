@@ -1,4 +1,6 @@
-from sdp import TIMESRE, parse_sdp, ProtocolVersion
+import io
+
+from sdp import TIMESRE, parse_sdp, ProtocolVersion, sdp_desc, _S
 
 import pytest
 
@@ -29,43 +31,63 @@ a=mid:data
 a=sctpmap:5000 webrtc-datachannel 1024'''
 
 
-class SDP(object):
-    def __init__(
-            self, version, originator, session_name, session_information, times,
-            uri=None, email=None, phone=None, contact_info=None,
-            bandwidth=None, timezones=None, encryption_key=None,
-            attributes=None, media_descriptions=None):
-       self.version = version
-       self.originator = originator
-       self.session_name = session_name
-       self.session_information = session_information
-       self.times = times
-       self.uri = uri
+# class SDP(object):
+#     def __init__(
+#             self, version, originator, session_name, session_information, times,
+#             uri=None, email=None, phone=None, contact_info=None,
+#             bandwidth=None, timezones=None, encryption_key=None,
+#             attributes=None, media_descriptions=None):
+#        self.version = version
+#        self.originator = originator
+#        self.session_name = session_name
+#        self.session_information = session_information
+#        self.times = times
+#        self.uri = uri
+#
+#     @classmethod
+#     def parse(cls, value):
+#         def tokens(val):
+#             for line in val.replace('\r', '').split('\n'):
+#                 yield line.split('=', 1)
+#         for key, val in tokens(value):
+#             pass
 
-    @classmethod
-    def parse(cls, value):
-        def tokens(val):
-            for line in val.replace('\r', '').split('\n'):
-                yield line.split('=', 1)
-        for key, val in tokens(value):
+
+#def test_parse_sdp():
+#    SDP.parse(s)
+
+
+#def test_protocol_version_loads_a():
+#    v, x = ProtocolVersion.consume('v=0\n')
+#    assert v.version == 0
+#
+#def test_protocol_version_loads_b():
+#    v = ProtocolVersion.load_val('v=0\r\n')
+#    assert v.version == 0
+#
+#def test_protocol_version_loads_c():
+#    v = ProtocolVersion.load_val('v=0')
+#    assert v.version == 0
+#
+#def test_protocol_version_dumps_a():
+#    assert ProtocolVersion(0).dumps() == 'v=0'
 
 
 def test_parse_sdp():
-    SDP.parse(s)
+    lines = io.StringIO(s)
+    for line in lines:
+        name, val = line.strip('\n').split('=', 1)
+        print('{} {}'.format(repr(name), repr(val)))
+   # assert False
 
-
-def test_protocol_version_loads_a():
-    v, x = ProtocolVersion.consume('v=0\n')
-    assert v.version == 0
-
-def test_protocol_version_loads_b():
-    v = ProtocolVersion.load_val('v=0\r\n')
-    assert v.version == 0
-
-def test_protocol_version_loads_c():
-    v = ProtocolVersion.load_val('v=0')
-    assert v.version == 0
-
-def test_protocol_version_dumps_a():
-    assert ProtocolVersion(0).dumps() == 'v=0'
-
+def test_parse_sdp_b():
+    def iter_desc(*fields):
+        for a in fields:
+            if type(a) == _S:
+                for b in iter_desc(*a.fields):
+                    yield b
+            else:
+                yield a
+    for x in iter_desc(sdp_desc):
+        print(x)
+   # assert False
